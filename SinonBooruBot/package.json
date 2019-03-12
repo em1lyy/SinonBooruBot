@@ -1,6 +1,6 @@
 {
   "name": "SinonBooruBot",
-  "version": "1.0.0",
+  "version": "1.2.7",
   "description": "A bot that uploads images of Sinon / Shino Asada to https://sinon.jagudev.net",
   "main": "bot.js",
   "author": "Jonas Jaguar",

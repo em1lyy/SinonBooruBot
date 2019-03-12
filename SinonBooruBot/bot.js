@@ -65,8 +65,8 @@ function logInfo(message) { // Alter log function
     logger.info(message); // Log message to winston
 }
 
-function logError(err, shardId) { // Alter error function
-    logger.error("Caught exception: " + err.message + " from shard # " + shardId); // Log exception message and Shard ID...
+function logError(err) { // Alter error function
+    logger.error("Caught exception: " + err.message); // Log exception message and Shard ID...
     logger.info("Stack trace: " + err.stack); // ..and stack trace to console using winston
 }
 
@@ -89,6 +89,8 @@ process.on("SIGINT", function () { // CTRL+C / Kill process event
 
 bot.on("ready", () => {    // When the bot is ready
     logger.warn("[MODULECOMMENTS] [AUTH] " + auth.comment);
+    logInfo("Checking image download directory...");
+    checkDLDir();
     logInfo("Ready event called!"); // Log "Ready!" and some information
     logInfo("User: " + bot.user.username); // User name
     logInfo("Start Timestamp: " + bot.startTime); // Start time as timestamp
@@ -108,6 +110,24 @@ ftp.on('ready', function() {
  * Basically the main functions of the bot.
  * emoji: 📤
 **/
+
+function checkDLDir() {
+  if (!fs.existsSync("./image_downloads")) {
+    logInfo("Download directory doesn't exist, creating it...")
+    fs.mkdir("image_downloads", {}, (err) => {
+      if (err) {
+        logger.error("An error occurred during the creation of the download directory!");
+        logger.error("Throwing error...");
+        logError(err);
+        throw err;
+      } else {
+        logInfo("Download directory created!");
+      }
+    });
+  } else {
+    logInfo("Download directory exists!");
+  }
+}
 
 function download (uri, filename, callback) {
   request.head(uri, function(err, res, body){
@@ -135,7 +155,7 @@ function uploadToFTPServer (filename) {
               if (err) throw err;
               ftp.cwd("images/gallery", (err, curdir) => {
                 if (err) throw err;
-                ftp.put(filename, filename, function(err) {
+                ftp.put("./image_downloads/" + filename, filename, function(err) {
                   if (err) throw err;
                   ftp.cdup((err) => {
                     if (err) throw err;
@@ -157,14 +177,14 @@ function uploadToFTPServer (filename) {
 }
 
 bot.on("messageReactionAdd", (message, emoji, userID) => {
-    if (userID === auth.ownerID && emoji.name === "📤") { // Do all the shit.
-      // messageN = await
-      logInfo("it isnt wednesday my dudes (uploading image now!)");
+    if (userID === auth.ownerID && emoji.name === "📤") {
+      logInfo("Reaction detected, checking message!");
       bot.getMessage(message.channel.id, message.id).then((messageN) => {
         var embeds = messageN.attachments;
         if (embeds.length != 0) {
-          logInfo("wew my dudes: " + embeds[0].filename);
-          download(embeds[0].url, embeds[0].filename, () => {
+          logInfo("All checks passed, uploading image now!");
+          logInfo("Upload filename: " + embeds[0].filename);
+          download(embeds[0].url, "./image_downloads/" + embeds[0].filename, () => {
             uploadToFTPServer(embeds[0].filename);
           });
         }
