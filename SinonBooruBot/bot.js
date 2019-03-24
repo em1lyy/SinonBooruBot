@@ -27,6 +27,9 @@ const auth = require("./auth.json");
 const ftpClient = require("ftp");
 const fs = require('fs');
 const request = require('request');
+const imagemin = require('imagemin');
+const imageminPngquant = require('imagemin-pngquant');
+const imageminMozjpeg = require('imagemin-mozjpeg');
 
 // Configure logger settings
 const logger = winston.createLogger({
@@ -127,6 +130,21 @@ function checkDLDir() {
   } else {
     logInfo("Download directory exists!");
   }
+  if (!fs.existsSync("./image_previews")) {
+    logInfo("Preview directory doesn't exist, creating it...")
+    fs.mkdir("image_previews", {}, (err) => {
+      if (err) {
+        logger.error("An error occurred during the creation of the preview directory!");
+        logger.error("Throwing error...");
+        logError(err);
+        throw err;
+      } else {
+        logInfo("Preview directory created!");
+      }
+    });
+  } else {
+    logInfo("Preview directory exists!");
+  }
 }
 
 function download (uri, filename, callback) {
@@ -136,6 +154,32 @@ function download (uri, filename, callback) {
     request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
   });
 };
+
+async function createPreviewImage (filename, callback) {
+  if (filename.endsWith(".png")) {
+    await imagemin(["./image_downloads/" + filename], "./image_previews/", {
+      plugins: [
+        imageminPngquant({
+          quality: [0.56, 0.72]
+        })
+      ]
+    }).then((out) => {
+      callback();
+    });
+  } else if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+    await imagemin(["./image_downloads/" + filename], "./image_previews/", {
+      plugins: [
+        imageminMozjpeg({
+          quality: 70,
+        })
+      ]
+    }).then((out) => {
+      callback();
+    });
+  } else {
+    logger.error("Couldn't detect file format, exiting!");
+  }
+}
 
 function uploadToFTPServer (filename) {
   console.log(filename);
@@ -159,10 +203,24 @@ function uploadToFTPServer (filename) {
                   if (err) throw err;
                   ftp.cdup((err) => {
                     if (err) throw err;
-                    ftp.cdup((err) => {
+                    ftp.cwd("preview", (err, curdir) => {
                       if (err) throw err;
-                      ftp.cdup((err) => {
+                      ftp.list((err, list) => {
                         if (err) throw err;
+                        createPreviewImage(filename, () => {
+                          ftp.put("./image_previews/" + filename, filename, function(err) {
+                            if (err) throw err;
+                            ftp.cdup((err) => {
+                              if (err) throw err;
+                              ftp.cdup((err) => {
+                                if (err) throw err;
+                                ftp.cdup((err) => {
+                                  if (err) throw err;
+                                });
+                              });
+                            });
+                          });
+                        });
                       });
                     });
                   });
